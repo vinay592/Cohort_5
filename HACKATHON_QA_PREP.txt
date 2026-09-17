@@ -1,0 +1,357 @@
+INTEGRATION HEALTH MONITORING — HACKATHON Q&A PREP
+====================================================
+Project: AI-Powered Integration Health Monitoring Platform (CoIF + L1/L2 Pipeline)
+Audience: Technical & Business Judges
+
+
+══════════════════════════════════════════════════════════
+SECTION 1: PROBLEM & MOTIVATION
+══════════════════════════════════════════════════════════
+
+Q: What problem are you solving?
+A: Modern enterprise systems like SAP, Oracle, and MES exchange data across hundreds of 
+   interfaces via middleware like Kafka and ESB. When these integrations fail, the logs 
+   from each system look completely different — pipe-delimited text, XML, JSONL, CSV — 
+   making it impossible to get a unified view of health. More critically, IT teams treat 
+   all failures equally. A low-priority CRM retry gets the same attention as a 
+   Critical Payment failure blocking $1M in transactions. We built a platform that 
+   ingests all those messy logs, normalizes them, and uses the Cost of Integration 
+   Failure (CoIF) score to rank interfaces by actual business impact, not raw failure count.
+
+Q: Why is this hard even with AI copilots?
+A: The challenge was designed to stay hard even with AI. The difficulty isn't in writing 
+   a single parser — it's in designing a system that works across ANY proprietary log 
+   format without a human rewriting parsers every time a new system is added. That 
+   requires an agentic design where the AI reads the schema, understands the semantics, 
+   and generates the mapping itself. The other hard part is making the CoIF formula 
+   consistent, explainable, and grounded in actual data — not hallucinated.
+
+Q: Who would use this in a real company?
+A: Three personas: (1) Integration Architects who need to know which interfaces are 
+   at risk. (2) Operations/SRE teams who need to triage incidents fast. (3) Business 
+   stakeholders (Finance, Supply Chain leads) who need to understand the business impact 
+   of IT failures in their own language — dollar-weighted health, not error codes.
+
+Q: Is this just a monitoring dashboard? How is it different from Splunk or Datadog?
+A: Tools like Splunk show you logs. We answer the question "what is the business cost 
+   of this failure?" CoIF converts raw telemetry into a prioritized, business-impact 
+   score per interface. We also go further by correlating individual events into 
+   incidents, providing root-cause classification (chronic vs. event-driven), and an 
+   evidence-grounded Q&A interface. Splunk surfaces data; we surface decisions.
+
+
+══════════════════════════════════════════════════════════
+SECTION 2: THE AGENTIC LOG NORMALIZATION
+══════════════════════════════════════════════════════════
+
+Q: How does your log normalization work?
+A: We implemented an Agentic Orchestration pipeline. For each source system, the 
+   orchestrator:
+   1. Extracts the structural schema of the raw log file.
+   2. Samples a few representative records.
+   3. Supplies the schema, samples, the 14-column target schema, and the interface 
+      master to an LLM.
+   4. The LLM generates a semantic field mapping AND a working Python converter script.
+   5. The converter runs in a sandboxed subprocess with a timeout.
+   6. The output is validated against the 14-column contract before being accepted.
+   This means we never wrote a single hard-coded parser. The LLM does the semantic work.
+
+Q: What is the "agentic design pattern" you used?
+A: We used the Plan-Execute-Validate loop pattern. The agent:
+   - Plans: What fields in the source map to which target fields?
+   - Executes: Generates and runs the actual transformation code.
+   - Validates: Checks the output schema for completeness and correctness.
+   This is different from a simple LLM prompt — it produces executable, 
+   deterministic artifacts (Python scripts) that can run offline without the LLM, 
+   making the pipeline reproducible and auditable.
+
+Q: What are the 6 log formats you handle?
+A: SAP ERP: Pipe-delimited operational log (e.g., EVT|TS_LOCAL|IFACE|RESULT|DETAILS).
+   Oracle SCM: Deeply nested JSON Lines with sub-objects for origin, destination, transport.
+   MES: Double-pipe key=value format with a packed CONTEXT field.
+   PLM: XML event records with attributes and CDATA failure nodes.
+   CRM: Semicolon-delimited audit trail with human-readable labels.
+   HCM: CSV with entirely different vocabulary (e.g., state_code=1 means Success).
+
+Q: What is the target normalized schema?
+A: Every record, regardless of source, is converted to 14 columns:
+   EventID, InterfaceID, SourceSystem, TargetSystem, Middleware, Pattern, Status,
+   ErrorCode, ErrorText, RootCauseClass, Latency_ms, SessionID, RequestID, Timestamp.
+   This mirrors the events.csv backbone that feeds all downstream analytics.
+
+Q: What happens if the LLM-generated code fails or produces wrong output?
+A: The validation step catches this. We validate the number of columns, column names, 
+   and data types of the output. If validation fails, the record is flagged and 
+   rejected rather than silently corrupting the downstream pipeline. In production, 
+   a failed file would trigger a human-review alert.
+
+Q: Is this approach safe? You're running LLM-generated code.
+A: We treat LLM-generated code as untrusted. The converter runs as a separate 
+   subprocess with a configurable timeout. In a production deployment, we'd run it 
+   in a container with the network disabled and a strict filesystem allowlist. The 
+   key insight is that the LLM generates a *converter*, not a privileged service — 
+   its blast radius is limited to the input file.
+
+
+══════════════════════════════════════════════════════════
+SECTION 3: CoIF FORMULA — BASELINE
+══════════════════════════════════════════════════════════
+
+Q: What is CoIF and how is it calculated?
+A: CoIF stands for Cost of Integration Failure. The formula is:
+   CoIF = Failure Signal × Priority Weight × Process Weight × Cost Multiplier
+   
+   - Failure Signal: 1.0 for Failed, 0.5 for Warning, 0.3 for Retry, 0.0 for Success.
+   - Priority Weight: Based on interface criticality (Critical=100, High=60, Elevated=25, Normal=5, Low=2).
+   - Process Weight: Business importance of the process (e.g., Goods Receipt=100, Incident Sync=15).
+   - Cost Multiplier: Calendar-aware — 3.0 during Month-End Close (MEC), 2.0 during Quarter-End (QEC), 1.0 Normal.
+   
+   The TotalCoIF for an interface is the SUM of CoIF scores across all its events.
+
+Q: Why multiply these four factors specifically?
+A: Because business impact is multiplicative, not additive. A failure at midnight on a 
+   normal Tuesday is qualitatively different from the same failure during month-end close. 
+   A retry on a Low-priority batch sync is nothing; a retry on a Critical Payment interface 
+   during QEC could be a major incident. Multiplication captures these compounding effects 
+   naturally — the factors are dimensionless weights, and their product represents the 
+   relative severity in a single, comparable number.
+
+Q: Why not just count failures per interface?
+A: Raw failure count has no business context. Interface A could have 500 failures on a 
+   low-priority, low-business-impact process and Interface B could have 5 failures on a 
+   Critical payment process during month-end. A raw count would mis-prioritize A over B. 
+   CoIF ensures resources are directed where the actual business pain is highest.
+
+Q: What are the limitations of the hardcoded formula?
+A: Three key limitations:
+   1. Static weights: The Priority Weight and Process Weight are manually set and 
+      don't adapt if business priorities shift.
+   2. Linear assumptions: It doesn't capture cascading failures — if Interface A's 
+      failure causes Interface B to fail, that knock-on effect isn't modeled.
+   3. No predictive capability: It can only score failures that have already happened. 
+      It can't predict which interface is likely to fail next.
+
+Q: How did you determine the weight values?
+A: The weights are informed by the hackathon's provided schema. Priority weights map 
+   directly to the priority_weight.csv reference table. Process weights come from 
+   process_impact_weight.csv, which assigns 0–100 scores per business process. The 
+   calendar multipliers are driven by business_calendar.csv which marks Month-End 
+   Close and Quarter-End windows explicitly. All weights are configurable — changing 
+   a CSV is all it takes to recalibrate the entire scoring model.
+
+
+══════════════════════════════════════════════════════════
+SECTION 4: CoIF — ML SOLUTION & TRADEOFFS
+══════════════════════════════════════════════════════════
+
+Q: Why would you need ML if the formula works?
+A: The hardcoded formula works well for known, stable failure patterns. But it misses:
+   - Hidden chronic patterns (e.g., Interface X fails every Friday at 11 PM but never 
+     triggers a critical CoIF because individual events are low-weight).
+   - Non-linear cascades (Failure A triggers B triggers C — the downstream impact is 
+     exponentially larger than A's CoIF alone).
+   - Temporal anomalies (latency spikes that precede hard failures — the formula 
+     reacts; ML predicts).
+
+Q: What ML approach would you use for CoIF?
+A: Three components:
+   1. Anomaly Detection (Isolation Forest or LSTM autoencoders) on latency and 
+      error rate time series to predict impending failures.
+   2. Graph-based propagation (Graph Neural Networks on the dependency graph) to 
+      model how a failure in SourceSystem propagates its CoIF to TargetSystem.
+   3. A learned weight model that infers dynamic Priority and Process weights from 
+      historical incident resolution data and business outcome signals.
+
+Q: What are the tradeoffs between hardcoded and ML CoIF?
+
+   HARDCODED:
+   + 100% explainable and auditable — any business user can verify the score.
+   + Cold-start friendly — works with zero historical data on day one.
+   + Deterministic — same inputs always produce same outputs.
+   - Weights are static and require manual tuning.
+   - Cannot capture non-linear cascading impact.
+   - Reactive only — cannot predict future failures.
+
+   ML MODEL:
+   + Dynamically adapts to changing business conditions.
+   + Can model cascading, non-linear impacts across the dependency graph.
+   + Predictive — can flag at-risk interfaces before failure.
+   - Requires weeks/months of labeled historical data to train.
+   - "Black box" — harder to explain to business stakeholders.
+   - Higher infrastructure cost and ongoing retraining overhead.
+
+Q: Which would you recommend for production?
+A: A hybrid approach. Use the hardcoded formula as the real-time baseline — it's always 
+   on and immediately explainable. Layer ML predictions as a separate "Risk Signal" 
+   column that shows predicted future CoIF without replacing the auditable baseline. 
+   This gives business users confidence while giving operations teams a predictive 
+   early-warning system.
+
+
+══════════════════════════════════════════════════════════
+SECTION 5: L1 — WHAT WE BUILT (COMPLETED)
+══════════════════════════════════════════════════════════
+
+Q: What is L1 and did you complete it?
+A: Yes, L1 is fully complete. L1 required:
+   1. Ingest & normalize messy multi-format logs — DONE (6 formats, agentic pipeline).
+   2. Searchable event store with de-dup signatures — DONE (Event Explorer with 13 
+      filter dimensions and free-text search; duplicate detection via error class signatures).
+   3. Health map ranked by CoIF — DONE (Interface, Process, and System-level health maps).
+   4. Incident correlation — DONE (temporal, error, and dependency-based clustering).
+   5. Evidence-grounded NL Q&A — DONE (8 question types routed to deterministic queries 
+      returning actual event rows as evidence).
+
+Q: What does the Streamlit dashboard include?
+A: Six pages:
+   - Overview: KPI cards (total events, failure rate, top CoIF, active incidents).
+   - Health Map: Interfaces ranked by TotalCoIF with CoIF explanation panel.
+   - Dependency Graph: Interactive NetworkX/Plotly graph with Middleware nodes.
+   - Incidents: Correlated incident table with timeline drill-down.
+   - Event Explorer: 13 filters + full-text search + event detail view.
+   - Ask the Data: Evidence-grounded Q&A over the event dataset.
+
+
+══════════════════════════════════════════════════════════
+SECTION 6: L2 — ADVANCED PIPELINE
+══════════════════════════════════════════════════════════
+
+Q: What is the L2 pipeline and how much did you implement?
+A: L2 is a 3-stage pipeline:
+   Stage 1 (Detect + Correlate) — COMPLETED.
+   Stage 2 (RCA: Chronic vs. Event) — COMPLETED.
+   Stage 3 (Remediation: Fix + Routing + Human-in-loop) — DESIGNED, not implemented.
+
+Q: How does Stage 1 (Detect + Correlate) work?
+A: We use a Union-Find (disjoint-set) algorithm to cluster events into incidents 
+   using three correlation signals simultaneously:
+   1. Temporal: Events on the SAME interface within a 5-minute window are merged.
+   2. Error class: Events with the same ErrorCode + RootCauseClass within the window 
+      are merged (catches cross-interface outages caused by the same root cause).
+   3. Dependency: Events on directly connected interfaces (per the dependency graph) 
+      within the window are merged (catches cascading failures).
+   The result is a set of incidents, each with a timeline and affected interface list.
+
+Q: How do you distinguish chronic vs. event-driven failures in Stage 2?
+A: Chronic failures repeat on the same interface across multiple independent time 
+   windows — a structural problem in the integration. Event-driven failures are 
+   one-time bursts, often correlated with a specific change event (from 
+   change_events.csv) that preceded the failure burst. Our "Ask the Data" Q&A 
+   interface lets users query for "which interfaces have recurring failures?" 
+   (chronic) or "what changed before this incident?" (event-driven RCA).
+
+Q: What is Stage 3 Remediation and why didn't you build it?
+A: Stage 3 would automatically route incident tickets to the correct support tier 
+   (L1 to L4 queues) based on the escalation_routing.csv table, suggest a fix based 
+   on the RootCauseClass, and flag for human review when confidence is low. We chose 
+   to focus engineering effort on making L1 and L2 Stage 1+2 production-quality 
+   rather than delivering a shallow L3. The escalation routing table is in our data 
+   model and the routing logic is fully designed.
+
+
+══════════════════════════════════════════════════════════
+SECTION 7: DEPENDENCY GRAPH
+══════════════════════════════════════════════════════════
+
+Q: How is the dependency graph constructed?
+A: From the interface_master.csv, which defines 28 business interfaces. Each interface 
+   has a SourceSystem, Middleware, and TargetSystem. We model the graph as:
+   SourceSystem → [Middleware Node] → TargetSystem
+   This means Middleware (Kafka, ESB, REST_API, etc.) appears as explicit nodes, 
+   not just edge labels. CoIF is aggregated per edge, so thicker/redder edges 
+   visually indicate higher-impact integration paths.
+
+Q: What can you see on the dependency graph?
+A: You can identify: (1) High-CoIF integration pathways at a glance by edge color and 
+   width. (2) Middleware bottlenecks — if many high-CoIF edges pass through [Kafka], 
+   that's your chokepoint. (3) Isolating blast radius — hovering over an edge shows 
+   affected interfaces, event counts, failure counts, and top error codes.
+
+
+══════════════════════════════════════════════════════════
+SECTION 8: DATA & SCHEMA
+══════════════════════════════════════════════════════════
+
+Q: Is your data real?
+A: No — we generated synthetic data that is architecturally realistic. The generator 
+   creates 6,000 events across 28 business interfaces with realistic failure rates 
+   (82% success, 12% failed, 6% retry), controlled root-cause classes, SLA violations, 
+   and 7 days of timestamps so chronic patterns can emerge. The key consistency 
+   rules — InterfaceIDs must exist in interface_master, BusinessProcesses must have 
+   ProcessWeights, and failure bursts are placed near change events — are all enforced.
+
+Q: What are the 7 tables in your schema?
+A: 1. events.csv — 3,000 rows, core telemetry.
+   2. interface_master.csv — 15 rows, interface catalog with criticality & SLA.
+   3. priority_weight.csv — 5 rows, maps Priority label to numeric weight.
+   4. process_impact_weight.csv — 14 rows, maps BusinessProcess to weight.
+   5. business_calendar.csv — 3 rows, defines MEC/QEC/Normal windows.
+   6. change_events.csv — 6 rows, feeds L2 causal RCA.
+   7. escalation_routing.csv — 8 rows, feeds L2 Stage 3 remediation routing.
+
+
+══════════════════════════════════════════════════════════
+SECTION 9: TECHNICAL DECISIONS & ARCHITECTURE
+══════════════════════════════════════════════════════════
+
+Q: Why Streamlit and not a React app?
+A: Streamlit gave us the fastest path to a working, interactive prototype without 
+   separating frontend and backend teams. For a hackathon, shipping a working product 
+   beats shipping a pretty scaffold. In production, we'd decouple to a FastAPI backend 
+   and React frontend, but the logic and data pipeline are framework-agnostic.
+
+Q: Why NetworkX for the graph and not a graph database like Neo4j?
+A: The dependency graph has 10 nodes and ~24 edges — graph database overhead isn't 
+   justified at this scale. NetworkX gives us full graph algorithms (shortest path, 
+   betweenness centrality for future use) in pure Python. We render with Plotly for 
+   interactive zoom and hover. Neo4j would be the right answer for a production system 
+   with thousands of interfaces.
+
+Q: How does the "Ask the Data" feature work without an LLM at runtime?
+A: We built a deterministic regex router. Each of the 8 question templates has a 
+   regex pattern that matches user intent. When matched, it runs a pre-built 
+   pandas query against the event data and returns a structured answer with actual 
+   event rows as evidence. This means zero hallucination, zero latency, and zero 
+   API cost. An LLM could be layered on top for free-form questions, but the 
+   hardcoded queries handle the core use cases reliably.
+
+Q: What is the event signature/de-duplication mechanism?
+A: Each event generates a signature based on the combination of InterfaceID + 
+   ErrorCode + RootCauseClass. Events with the same signature that occur within 
+   a short window are treated as duplicates of the same root condition. The signatures 
+   table in the Event Explorer shows which error patterns are recurring versus one-off, 
+   which is the foundation of the chronic vs. event-driven RCA distinction.
+
+
+══════════════════════════════════════════════════════════
+SECTION 10: FUTURE SCOPE & L3
+══════════════════════════════════════════════════════════
+
+Q: What would you build next if you had more time?
+A: Three priorities:
+   1. L3 Blast-Radius Prediction: Use Graph Neural Networks on the dependency 
+      graph to compute a risk score per interface for any proposed change event, 
+      ranked by predicted downstream CoIF impact.
+   2. Stage 3 Remediation: Auto-route incidents to L1–L4 queues via 
+      escalation_routing.csv, with a human-in-the-loop approval step for 
+      high-severity actions.
+   3. Real-time streaming: Replace batch CSV ingestion with Kafka consumer streams 
+      so the Health Map updates within seconds of a new failure event.
+
+Q: How would you measure the quality of your L3 predictions?
+A: Precision/Recall against the held-out Ground_Truth_Incidents table (which the 
+   judges have). Precision = of the interfaces we predicted would be impacted, how 
+   many actually were. Recall = of the interfaces actually impacted, how many did 
+   we catch. MTTD (Mean Time to Detect) is an optional stretch metric.
+
+Q: Could this scale to a real enterprise with 500+ interfaces?
+A: Yes, with two changes: (1) Move from flat CSVs to a proper database (PostgreSQL 
+   or a graph DB). (2) Replace the batch normalization pipeline with a real-time 
+   Kafka-based ingest layer. The CoIF formula, incident clustering, and dependency 
+   graph algorithms are all O(n) or O(n log n) — they scale linearly with event 
+   volume. The agentic log normalization is inherently scalable because it writes 
+   one converter per source system, not one per event.
+
+====================================================
+END OF Q&A DOCUMENT
+====================================================
