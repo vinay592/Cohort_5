@@ -1,95 +1,171 @@
 # Gamma AI Prompt: Integration Health Monitoring Platform
+## NCG Hackathon — Cohort 5
 
-**System Instructions for Gamma AI:** 
-You are an expert presentation designer. Create a highly concise, diagram-rich presentation based on the following 5 parts. Rely heavily on visual representations (flowcharts, comparison tables, architecture diagrams) rather than blocks of text.
+**System Instructions for Gamma AI:**
+You are an expert presentation designer. Create a highly concise, visually rich, dark-themed presentation based on the 5 parts below. Rely on diagrams, flowcharts, comparison tables, and architecture visuals — not text blocks. Keep bullets tight: max 6–8 words per bullet. Use the color palette: dark navy background (#0f172a), sky-blue accents (#38bdf8), teal highlights (#2dd4bf), amber warnings (#fbbf24).
 
 ---
 
 ## Part 1: Intro to Problem
 
-**Core Message:**
-Modern enterprise architectures are complex, heterogeneous, and siloed. When an integration fails between disparate systems, identifying the root cause across different applications and middleware is extremely difficult, leading to blind spots and business disruption.
+**Title:** Enterprise Integration — A Visibility Blackhole
 
-**Diagram Instruction:** 
-Create an architecture flow diagram (dark theme preferred) that illustrates this complexity:
-- **Top level connections:** `ERP System 1 (e.g., SAP)` ➔ `MIDDLEWARE (Kafka, RabbitMQ, etc.)` ➔ `ERP System 2 (e.g., Oracle)`
-- **Drill down mapping:** 
-  - Under SAP: *Production Planning Application* (Services: Planning, Material) & *Quality Management Application* (Services: Inspection, Defect).
-  - Under Oracle: *Supply Chain Application* & *Inventory Management Application*.
-- **Bottom flow:** `Product Planning` ➔ `SAP` ➔ `Kafka` ➔ `Oracle` ➔ `Supply Chain`.
-- **Highlight:** Emphasize the "Integration Gap" (the arrows) where failures happen and visibility is lost due to varying log formats.
+**Core Message (2 sentences max on slide):**
+Enterprises run 6+ ERP systems exchanging data through middleware. When integrations fail, logs are unreadable, formats clash, and there is no unified health view — only raw failure counts that misprioritize business impact.
+
+**Diagram 1 — Architecture Overview (dark, hand-drawn style):**
+Draw a two-tier architecture diagram:
+- Top row: `ERP System 1 (SAP)` ←→ `MIDDLEWARE (Kafka / ESB / REST_API)` ←→ `ERP System 2 (Oracle SCM)`
+- Under SAP: Production Planning App, Quality Management App (each with sub-services)
+- Under Oracle: Supply Chain App, Inventory Management App
+- Bottom linear flow: `Product Planning → SAP → Kafka → Oracle → Supply Chain`
+- Annotate the arrows between systems with a red/amber "⚠ Failure Gap — 6 different log formats, zero unified view"
+
+**Diagram 2 — Problem Definition Cards (4 cards, icon + 1-line text):**
+- 🎯 Prioritize — Rank by business impact, not raw failure count
+- 🧠 Explain — Chronic vs. event-driven root cause, grounded in evidence
+- 🔧 Prescribe — Right fix routed to the right support queue
+- ⚡ Predict — Blast-radius risk score before a change deploys
 
 ---
 
-## Part 2: Converting Messy Logs to Consistent Logs
+## Part 2: Agentic Log Normalization
+
+**Title:** Taming 6 Proprietary Formats with One Agentic Pipeline
 
 **Core Message:**
-Each enterprise system generates proprietary, differently-formatted logs (e.g., SAP Pipe-delimited, Oracle JSONL, PLM XML, HCM CSV). We implemented an **Agentic Design Pattern** to normalize this chaos into a unified schema without writing hard-coded parsers for every system.
+We built an AI Orchestrator that reads any log format, generates a Python converter, runs it in a sandbox, validates the 14-column output — and produces a unified events table without a single hard-coded parser.
 
-**Diagram Instruction:** 
-Create a step-by-step agentic workflow diagram:
-1. **Input:** Heterogeneous Logs (SAP, Oracle, MES, PLM, CRM, HCM).
-2. **Agentic Orchestrator:** 
-   - *Extracts* structural schema.
-   - *Samples* representative records.
-   - *LLM Generates* semantic mapping & Python conversion code.
-   - *Executes* the code in a sandboxed environment.
-3. **Output:** Clean, normalized 14-column tabular event records (EventID, Status, Latency, ErrorCode, etc.).
+**Diagram — Left-to-Right Agentic Flow (3 zones, use arrows between each step):**
+
+**Zone 1 — Heterogeneous Inputs (left column, 6 boxes):**
+| System | Format |
+|--------|--------|
+| SAP ERP | Pipe-delimited: `EVT\|TS\|IFACE\|RESULT\|DETAILS` |
+| Oracle SCM | Nested JSON Lines (origin, destination, transport objects) |
+| MES | Double-pipe Key=Value: `WHEN=...\|\|TXN=...\|\|CONTEXT={...}` |
+| PLM | XML: `<event id="..." status="..."><failure code="...">` |
+| CRM | Semicolon-delimited audit trail |
+| HCM | CSV with custom vocabulary (state_code=9 means FAILED) |
+
+**Zone 2 — Agentic Orchestrator (center, 5 numbered steps with arrows between them):**
+1. Extract structural schema from raw file
+2. Sample representative records (success + failure examples)
+3. LLM → Generate semantic field mapping + Python converter code
+4. Execute converter in sandboxed subprocess (timeout enforced)
+5. Validate: 14 columns, correct types, no nulls in required fields
+
+**Zone 3 — Normalized Output (right column, 14-row list):**
+Unified 14-column schema: EventID · InterfaceID · SourceSystem · TargetSystem · Middleware · Pattern · Status · ErrorCode · ErrorText · RootCauseClass · Latency_ms · SessionID · RequestID · Timestamp
+
+**Key callout (bottom of slide):**
+> Zero hand-written parsers. Zero hallucinated data. LLM generates code; code runs deterministically.
 
 ---
 
 ## Part 3: Cost of Integration Failure (CoIF)
 
-**Core Message:**
-Not all failures are equal. We must quantify the business impact using CoIF to prioritize incidents.
+**Title:** CoIF — Turning Failure Events into Business Impact Scores
 
-**1. The Baseline Formula (Hard-coded):**
-`CoIF = Failure Signal × Priority Weight × Process Weight × Cost Multiplier`
+### Slide 3a: The Baseline Formula
 
-**2. The ML Solution:**
-Predictive CoIF using historical correlations, anomaly detection, and graph-based impact propagation.
+**Formula (large, centered, highlighted box):**
+```
+CoIF = Failure Signal × Priority Weight × Process Weight × Cost Multiplier
+```
 
-**Diagram Instruction:** 
-Create a visually appealing Comparison Table defining the tradeoffs between the two approaches:
+**4 Factor Breakdown Cards (side-by-side, each a small card):**
+- **Failure Signal** — Failed=1.0 · Retry=0.3 · Warning=0.5 · Success=0.0
+- **Priority Weight** — Critical=100 · High=60 · Elevated=25 · Normal=5 · Low=2
+- **Process Weight** — 0–100 from process_impact_weight.csv (Goods Receipt=100, Incident Sync=15)
+- **Cost Multiplier** — Month-End Close=3.0× · Quarter-End Close=2.0× · Normal=1.0×
 
-| Feature | Baseline Formula (Hard-coded) | ML Solution (Predictive) |
-| :--- | :--- | :--- |
-| **Pros** | 100% Explainable & deterministic.<br>Immediate cold-start (no training data needed).<br>Easy for business users to audit. | Dynamically captures hidden chronic patterns.<br>Adapts to seasonality & complex dependencies.<br>Predicts cascading impact. |
-| **Cons** | Static weights.<br>Ignores non-linear cascading impacts.<br>Requires manual weight tuning. | "Black box" unexplainability.<br>Requires large training datasets (no cold start).<br>Higher compute & maintenance costs. |
+**Live Example Calculation (call-out box at bottom):**
+> FAILED · Critical Payment Interface · Month-End Close:
+> **1.0 × 100 × 90 × 3.0 = CoIF 27,000** → Immediate P1 escalation
+> 
+> vs. 500 failures on a low-priority CRM batch sync → CoIF 750 total → deprioritized
+
+**Why this matters:** The TotalCoIF per interface = SUM of all event CoIF scores. The Health Map ranks every interface, process, and system by TotalCoIF — not by failure count.
+
+### Slide 3b: Baseline vs ML Tradeoffs
+
+**Comparison Table:**
+| | Baseline Formula ✅ | ML Model 🚀 |
+|:---|:---|:---|
+| Cold start | Works day 1, no training data | Needs weeks of labelled history |
+| Explainability | Every score is auditable by business users | Black-box — harder to justify |
+| Adaptability | Static weights, manual tuning needed | Dynamic — adapts to patterns & seasonality |
+| Cascades | Linear — misses knock-on amplification | GNN-based — models propagation |
+| Prediction | Reactive — scores past failures only | Predictive — flags at-risk interfaces ahead of failure |
+
+**Recommendation callout:** Hybrid approach — hardcoded formula as real-time auditable baseline + ML "Risk Signal" as a separate predictive layer on top.
 
 ---
 
-## Part 4: L2 Advanced Pipeline & Implementation Extent
+## Part 4: What We Built — L1 Complete + L2 Stage 1 & 2
 
-**Core Message:**
-The project scales across 3 challenge levels (L1 Foundation, L2 Advanced, L3 Elite). We have fully completed L1 and successfully implemented Stage 1 and Stage 2 of the L2 Pipeline.
+**Title:** Execution: L1 Fully Delivered, L2 Stage 1 + 2 Live
 
-**Our Implementation Extent:**
-- We successfully built the ingestion, normalization, and Health Map (L1).
-- We implemented **L2 Stage 1 (Detect + Correlate)** by clustering temporal and dependency-linked events into distinct incidents.
-- We implemented **L2 Stage 2 (RCA)** via an evidence-grounded Natural Language Q&A interface ("Ask the Data") for root cause exploration.
+### Slide 4a: The 6-Page Live Dashboard
 
-**Diagram Instruction:** 
-Create a 3-Stage Pipeline diagram showing our progress:
-- ✅ **Stage 1: Detect + Correlate** (Completed: Topological & Temporal Clustering)
-- ✅ **Stage 2: RCA** (Completed: LLM-assisted Q&A & CoIF Health Maps)
-- ⏳ **Stage 3: Remediation** (Future: Fix + Routing + Human-in-loop)
+**Show as a dashboard screenshot mockup or icon grid with labels:**
+| Page | What it does |
+|------|-------------|
+| 📊 Overview | KPI cards: total events, failure rate, top CoIF interface, active incidents |
+| 🗺 Health Map | Interfaces ranked by TotalCoIF · CoIF formula explanation panel per row |
+| 🔗 Dependency Graph | Interactive NetworkX/Plotly graph · SourceSystem → [Middleware] → TargetSystem nodes |
+| 🚨 Incidents | Correlated incident clusters · timeline drill-down · affected interfaces |
+| 🔍 Event Explorer | 13 filter dimensions · free-text search · per-event CoIF breakdown |
+| 💬 Ask the Data | 8 question templates → deterministic pandas queries → evidence rows returned |
+
+**Key technical detail:** Dependency graph now includes Middleware as explicit nodes (e.g., [Kafka], [ESB]) — not just edge labels — so bottleneck middleware is visually identifiable.
+
+### Slide 4b: L2 Incident Correlation (Stage 1)
+
+**Diagram — 3 Correlation Signals flowing into Union-Find:**
+Show 3 input signals converging into a box labeled "Union-Find Clustering Algorithm":
+1. **Temporal** — Same interface, events within ±5-minute window → merged
+2. **Error Class** — Same ErrorCode + RootCauseClass across interfaces, within window → merged
+3. **Dependency** — Events on graph-connected interfaces (SourceSystem→TargetSystem) within window → merged
+
+**Output:** Discrete incident clusters, each with: timeline · affected interfaces · top error codes · total CoIF
+
+**Note:** Restricting temporal correlation to the SAME interface prevents the "transitive chain" problem where all events collapse into one giant incident.
+
+### Slide 4c: L2 RCA — Ask the Data (Stage 2)
+
+**How it works (3-step flow):**
+1. User types a natural-language question
+2. Regex intent router matches to 1 of 8 question templates
+3. Deterministic pandas query runs → returns actual event rows as evidence (no hallucination)
+
+**8 Supported Question Types:**
+- Which interface has the highest CoIF?
+- What are the top failure root causes?
+- Show me all failures on [interface]
+- Which interfaces have SLA violations?
+- What failed during month-end close?
+- Which sessions have multiple failures?
+- What is the failure rate by system?
+- Show me the worst interfaces by process
 
 ---
 
-## Part 5: Future Scopes
+## Part 5: Future Scope
 
-**Core Message:**
-To reach the Elite L3 level and beyond, the platform must evolve from reactive correlation to predictive autonomy.
+**Title:** Roadmap — From Reactive to Autonomous
 
-**Future Enhancements:**
-1. **L3 Blast-Radius Prediction:** Implementing Graph Neural Networks to predict the downstream risk score per interface before a failure cascades.
-2. **Closed-loop Automation:** Self-learning remediation that automatically routes tickets to specific queues (L1 to L4) based on escalation routing tables.
-3. **Real-time Streaming:** Transitioning from batch log processing to real-time stream ingestion for instant CoIF recalculation and sub-second anomaly detection.
+**Staircase diagram (4 ascending steps, left to right):**
 
-**Diagram Instruction:** 
-Create a futuristic roadmap/staircase graphic:
-- *Step 1: Reactive (L1)* - What we have.
-- *Step 2: Correlated (L2)* - Where we are.
-- *Step 3: Predictive (L3)* - Blast-radius predictions.
-- *Step 4: Autonomous* - Closed-loop self-healing routing.
+| Step | Label | What it means |
+|------|-------|---------------|
+| ✅ Step 1 | Reactive — L1 | Live: CoIF Health Map · Log Normalization · NL Q&A |
+| ✅ Step 2 | Correlated — L2 | Live: Incident clustering · Chronic vs. Event RCA |
+| 🚀 Step 3 | Predictive — L3 | Build: GNN blast-radius risk score per interface pre-deployment |
+| 🔮 Step 4 | Autonomous | Build: Closed-loop auto-routing + self-learning CoIF weights |
+
+**3 Future Enhancements (cards):**
+1. **L3 Blast-Radius Prediction** — GNNs on the dependency graph predict ranked downstream risk score for every proposed change event *before* it deploys.
+2. **Closed-Loop Remediation** — Auto-route incidents to L1–L4 support queues via escalation_routing.csv. Human-in-loop approval gate for P1/Critical actions.
+3. **Real-Time Streaming Ingest** — Replace batch CSV pipeline with Kafka consumer. CoIF scores recalculate within seconds of new events, not minutes.
