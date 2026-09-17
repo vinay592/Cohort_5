@@ -27,6 +27,13 @@ import pandas as pd
 from src.data_loader import load_all
 from src.validation import validate
 from src.normalization import enrich
+
+import importlib
+import sys
+import src.coif
+import src.ui_helpers
+importlib.reload(sys.modules['src.coif'])
+importlib.reload(sys.modules['src.ui_helpers'])
 from src.coif import compute_coif, aggregate_by_interface, aggregate_by_process, aggregate_by_system
 from src.signatures import add_signatures
 from src.incidents import correlate_incidents
@@ -34,9 +41,13 @@ from src.graph import build_dependency_graph, graph_to_plotly, get_edge_data
 from src.queries import answer_question
 from src.ui_helpers import (
     apply_dark_theme,
+    page_header,
     kpi_card,
     coif_bar_chart,
     coif_treemap,
+    coif_donut_chart,
+    coif_sunburst,
+    coif_bubble_chart,
     event_timeline,
     coif_explanation_card,
     priority_badge,
@@ -52,11 +63,11 @@ apply_dark_theme()
 # ---------------------------------------------------------------------------
 
 @st.cache_data(show_spinner="Processing CoIF pipeline …")
-def build_pipeline():
+def build_pipeline(use_legacy=False):
     bundle = load_all()
     report = validate(bundle)
     enriched = enrich(bundle)
-    scored = compute_coif(enriched)
+    scored = compute_coif(enriched, use_legacy=use_legacy)
     signed = add_signatures(scored)
 
     iface_agg = aggregate_by_interface(signed)
@@ -77,8 +88,10 @@ def build_pipeline():
         "incidents": incidents_df,
     }
 
+# Provide a toggle before we build the pipeline
+use_legacy = st.sidebar.toggle("Use Enhanced Baseline for CoIF", value=False, help="Uses the enhanced robust baseline formula (0-100) instead of the ML model", key="legacy_toggle")
 
-data = build_pipeline()
+data = build_pipeline(use_legacy=use_legacy)
 bundle = data["bundle"]
 report = data["report"]
 events = data["events"]
@@ -154,10 +167,10 @@ st.sidebar.markdown(
 # PAGE: Overview
 # ===========================================================================
 if page == "Overview":
-    st.markdown("## 🏠 Integration Health Overview")
-    st.markdown(
-        "<p style='color:#94a3b8;'>Real-time business-impact scoring across all integration interfaces.</p>",
-        unsafe_allow_html=True,
+    page_header(
+        "Integration Health Overview",
+        subtitle="Real-time business-impact scoring across all integration interfaces.",
+        icon="🏠",
     )
 
     # KPI row
@@ -188,16 +201,18 @@ if page == "Overview":
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    # Charts row
+    # Charts row — purposeful layout
     col1, col2 = st.columns(2)
     with col1:
+        # Primary operational chart: which interfaces are costing the most
         st.plotly_chart(
             coif_bar_chart(iface_agg, "InterfaceID", "Top Interfaces by Total CoIF"),
             use_container_width=True,
         )
     with col2:
+        # Event status split — first question ops teams ask
         st.plotly_chart(
-            coif_bar_chart(proc_agg, "BusinessProcess", "Top Business Processes by Total CoIF"),
+            coif_donut_chart(events),
             use_container_width=True,
         )
 
@@ -211,7 +226,12 @@ if page == "Overview":
         )
 
     # Recent high-impact incidents
-    st.markdown("### 🚨 Top Incidents by Business Impact")
+    st.markdown(
+        f"<div class='gold-divider'></div>"
+        "<div style='color:#c9a84c; font-size:0.7rem; text-transform:uppercase; "
+        "letter-spacing:0.1em; font-weight:600; margin-bottom:10px;'>Top Incidents by Business Impact</div>",
+        unsafe_allow_html=True,
+    )
     if not incidents_df.empty:
         top_inc = incidents_df.head(5).copy()
         top_inc["AffectedSystems"] = top_inc["AffectedSystems"].apply(
@@ -233,11 +253,10 @@ if page == "Overview":
 # PAGE: Health Map
 # ===========================================================================
 elif page == "Health Map":
-    st.markdown("## 🗺️ Integration Health Map")
-    st.markdown(
-        "<p style='color:#94a3b8;'>Interfaces ranked by Total CoIF (business impact). "
-        "Select a row to see the full CoIF calculation breakdown.</p>",
-        unsafe_allow_html=True,
+    page_header(
+        "Integration Health Map",
+        subtitle="Interfaces ranked by Total CoIF (business impact). Select a row to see the full CoIF breakdown.",
+        icon="🗺️",
     )
 
     tabs = st.tabs(["By Interface", "By Business Process", "By System"])
@@ -296,38 +315,40 @@ elif page == "Health Map":
 
     # --- Tab 2: Business Process ---
     with tabs[1]:
+        # Sunburst: shows Process → Interface hierarchy in one view
         st.plotly_chart(
-            coif_bar_chart(proc_agg, "BusinessProcess", "Business Process CoIF Ranking"),
+            coif_sunburst(events),
             use_container_width=True,
         )
-        st.dataframe(
-            proc_agg.reset_index(drop=True),
-            use_container_width=True,
-            hide_index=True,
-        )
+        with st.expander("📋 Business Process CoIF Table", expanded=False):
+            st.dataframe(
+                proc_agg.reset_index(drop=True),
+                use_container_width=True,
+                hide_index=True,
+            )
 
     # --- Tab 3: System ---
     with tabs[2]:
+        # Bubble chart: EventCount vs AvgLatency, sized by CoIF
         st.plotly_chart(
-            coif_bar_chart(sys_agg, "System", "System CoIF Ranking"),
+            coif_bubble_chart(sys_agg),
             use_container_width=True,
         )
-        st.dataframe(
-            sys_agg.reset_index(drop=True),
-            use_container_width=True,
-            hide_index=True,
-        )
+        with st.expander("📋 System CoIF Table", expanded=False):
+            st.dataframe(
+                sys_agg.reset_index(drop=True),
+                use_container_width=True,
+                hide_index=True,
+            )
 
 # ===========================================================================
 # PAGE: Dependency Graph
 # ===========================================================================
 elif page == "Dependency Graph":
-    st.markdown("## 🌐 System Dependency Graph")
-    st.markdown(
-        "<p style='color:#94a3b8;'>Directed graph of system integrations. "
-        "Edge thickness and colour encode Total CoIF (thicker/redder = higher impact). "
-        "Hover over an edge for details.</p>",
-        unsafe_allow_html=True,
+    page_header(
+        "System Dependency Graph",
+        subtitle="Directed graph of system integrations. Edge thickness and colour encode Total CoIF — thicker/redder = higher impact.",
+        icon="🌐",
     )
 
     fig = graph_to_plotly(G)
@@ -391,12 +412,10 @@ elif page == "Dependency Graph":
 # PAGE: Incidents
 # ===========================================================================
 elif page == "Incidents":
-    st.markdown("## 🚨 Correlated Incidents")
-    st.markdown(
-        "<p style='color:#94a3b8;'>Likely Incident Clusters ranked by Total CoIF. "
-        "Events are correlated by RequestID, SessionID, temporal proximity, "
-        "dependency chain, and error class.</p>",
-        unsafe_allow_html=True,
+    page_header(
+        "Correlated Incidents",
+        subtitle="Likely incident clusters ranked by Total CoIF. Correlated by RequestID, SessionID, temporal proximity, dependency chain, and error class.",
+        icon="🚨",
     )
 
     if incidents_df.empty:
@@ -506,11 +525,10 @@ elif page == "Incidents":
 # PAGE: Event Explorer
 # ===========================================================================
 elif page == "Event Explorer":
-    st.markdown("## 🔍 Event Explorer")
-    st.markdown(
-        "<p style='color:#94a3b8;'>Search and filter all events. "
-        "Inspect individual events to see full CoIF evidence.</p>",
-        unsafe_allow_html=True,
+    page_header(
+        "Event Explorer",
+        subtitle="Search, filter, and inspect all integration events. Select any event to see its full CoIF evidence trail.",
+        icon="🔍",
     )
 
     # Filters
@@ -660,11 +678,10 @@ elif page == "Event Explorer":
 # PAGE: Ask the Data
 # ===========================================================================
 elif page == "Ask the Data":
-    st.markdown("## 💬 Ask the Data")
-    st.markdown(
-        "<p style='color:#94a3b8;'>Evidence-grounded natural-language Q&A. "
-        "All answers are derived from the actual loaded dataset.</p>",
-        unsafe_allow_html=True,
+    page_header(
+        "Ask the Data",
+        subtitle="Evidence-grounded Q&A — all answers derived from the actual loaded dataset.",
+        icon="💬",
     )
 
     # Example questions
@@ -679,20 +696,32 @@ elif page == "Ask the Data":
         "Which failures occurred during MEC?",
     ]
 
-    st.markdown("**📌 Example questions:**")
+    # Styled question chips
+    st.markdown(
+        "<div style='color:#8b92a5; font-size:0.75rem; text-transform:uppercase; "
+        "letter-spacing:0.08em; margin-bottom:10px;'>Quick Questions</div>",
+        unsafe_allow_html=True,
+    )
     cols = st.columns(4)
     for i, ex in enumerate(examples):
         with cols[i % 4]:
             if st.button(ex, key=f"ex_{i}"):
                 st.session_state["qa_input"] = ex
 
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
+    # Styled search bar
+    st.markdown(
+        """
+        <div style='margin:20px 0 8px 0; color:#8b92a5; font-size:0.8rem;
+                    text-transform:uppercase; letter-spacing:0.08em;'>Your Question</div>
+        """,
+        unsafe_allow_html=True,
+    )
     user_q = st.text_input(
         "Ask a question about the data:",
         value=st.session_state.get("qa_input", ""),
         placeholder="e.g. Which interface has the highest CoIF?",
         key="qa_input",
+        label_visibility="collapsed",
     )
 
     if user_q.strip():
@@ -707,16 +736,21 @@ elif page == "Ask the Data":
 
         st.markdown(
             f"""
-            <div style="background:linear-gradient(135deg, #0f2640, #1e293b);
-                        border:1px solid #1e3a5f; border-radius:12px;
-                        padding:20px; margin:16px 0;">
-                <div style="color:#94a3b8; font-size:0.8rem; margin-bottom:8px;">ANSWER</div>
-                <div style="color:#e2e8f0;">
+            <div style="
+                background: linear-gradient(145deg, #141728, #0d0f1a);
+                border: 1px solid #1e2340;
+                border-left: 3px solid #c9a84c;
+                border-radius: 14px;
+                padding: 22px 24px;
+                margin: 16px 0;
+            ">
+                <div style="color:#c9a84c; font-size:0.7rem; text-transform:uppercase;
+                            letter-spacing:0.1em; font-weight:600; margin-bottom:10px;">Answer</div>
             """,
             unsafe_allow_html=True,
         )
         st.markdown(answer.answer)
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
         if not answer.evidence_df.empty:
             with st.expander(f"📎 {answer.evidence_label} ({len(answer.evidence_df)} rows)", expanded=True):
