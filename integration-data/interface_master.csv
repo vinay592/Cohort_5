@@ -1,0 +1,16 @@
+InterfaceID,SourceSystem,TargetSystem,Middleware,Pattern,BusinessProcess,Priority,Area,Criticality,SLA_ms
+IF_ORD_001,ORD,MFG,MsgBus,Async,order creation,Critical,Sales,P1,800
+IF_ORD_002,ORD,PAY,API,REST,payment request,Critical,Finance,P1,800
+IF_ORD_003,ORD,PRC,ESB,SOAP,order validation,High,Sales,P2,1500
+IF_PAY_001,PAY,ORD,API,REST,payment authorization,Critical,Finance,P1,800
+IF_PRC_001,PRC,MFG,ESB,SOAP,purchase order creation,High,Procurement,P2,1500
+IF_PRC_002,PRC,ASM,MsgBus,Async,material receipt,High,Procurement,P2,1500
+IF_MFG_001,MFG,ASM,MsgBus,Async,production start,High,Manufacturing,P2,1500
+IF_MFG_002,MFG,PRC,API,REST,material request,Medium,Manufacturing,P3,3000
+IF_ASM_001,ASM,DLV,ESB,Batch,assembly completion,High,Assembly,P2,1500
+IF_ASM_002,ASM,MFG,API,REST,quality check,Medium,Assembly,P2,2500
+IF_DLV_001,DLV,ORD,API,REST,shipment dispatch,High,Logistics,P2,1500
+IF_DLV_002,DLV,PAY,MsgBus,Async,delivery confirmation,Medium,Logistics,P3,3000
+IF_MFG_003,MFG,DLV,ESB,CDC,assembly start,Medium,Manufacturing,P3,3000
+IF_PAY_002,PAY,PRC,API,REST,invoice settlement,Medium,Finance,P3,3000
+IF_ORD_004,ORD,DLV,ESB,Batch,order fulfilment,Low,Sales,P3,5000
