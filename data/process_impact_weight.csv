@@ -1,0 +1,16 @@
+BusinessProcess,ProcessWeight
+Delivery Confirmation Payment Capture,100
+Payment Authorization,100
+Payment Request,90
+Production Start Trigger,90
+Assembly Completion,85
+Order Validation,80
+Shipment Dispatch,80
+Assembly Start Trigger,75
+Purchase Order Creation,70
+Quality Check,65
+Material Receipt,55
+Inventory Stock Decrement,35
+Payment Status Sync,30
+Material Requirement Notification,20
+Supplier Validation,15

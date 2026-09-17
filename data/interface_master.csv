@@ -1,0 +1,16 @@
+InterfaceID,SourceSystem,TargetSystem,Middleware,Pattern,BusinessProcess,Priority,Area,Criticality,SLA_ms,PriorityWeight
+IF_ORD_001,ORD,PAY,API,REST,Payment Request,Critical,Finance,P1,313,100
+IF_PAY_001,PAY,ORD,API,REST,Payment Authorization,Critical,Finance,P1,178,100
+IF_PAY_002,PAY,ORD,ESB,CDC,Payment Status Sync,Elevated,Finance,P2,825,25
+IF_ORD_002,ORD,MFG,MsgBus,Async,Production Start Trigger,Critical,Manufacturing,P1,339,100
+IF_ORD_003,ORD,MFG,API,REST,Order Validation,High,Order Management,P2,540,60
+IF_MFG_001,MFG,ASM,MsgBus,Async,Assembly Start Trigger,High,Assembly,P2,525,60
+IF_MFG_002,MFG,ASM,API,REST,Quality Check,Elevated,Assembly,P2,1028,25
+IF_MFG_003,MFG,ASM,MsgBus,CDC,Inventory Stock Decrement,Elevated,Manufacturing,P2,942,25
+IF_MFG_004,MFG,PRC,MsgBus,Async,Material Requirement Notification,Normal,Manufacturing,P3,1709,5
+IF_PRC_001,PRC,MFG,ESB,SOAP,Purchase Order Creation,High,Procurement,P2,746,60
+IF_PRC_002,PRC,ASM,Batch,Batch,Material Receipt,Elevated,Procurement,P2,1358,25
+IF_PRC_003,PRC,MFG,API,REST,Supplier Validation,Normal,Procurement,P3,1678,5
+IF_ASM_001,ASM,DLV,MsgBus,Async,Assembly Completion,High,Assembly,P2,702,60
+IF_ASM_002,ASM,DLV,API,REST,Shipment Dispatch,High,Logistics,P2,616,60
+IF_DLV_001,DLV,PAY,API,REST,Delivery Confirmation Payment Capture,Critical,Logistics,P1,158,100

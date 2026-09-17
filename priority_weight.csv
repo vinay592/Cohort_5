@@ -1,0 +1,6 @@
+Priority,Weight
+Critical,100
+High,60
+Elevated,25
+Normal,5
+Low,2

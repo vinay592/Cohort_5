@@ -1,0 +1,4 @@
+WindowStart,WindowEnd,WindowType,CostMultiplier
+2026-09-10,2026-09-11,MEC,2.0
+2026-09-12,2026-09-13,QEC,3.0
+2026-09-14,2026-09-16,Normal,1.0
