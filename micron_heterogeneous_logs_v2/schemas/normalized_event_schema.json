@@ -1,0 +1,16 @@
+{
+  "EventID": "string",
+  "InterfaceID": "string",
+  "SourceSystem": "string",
+  "TargetSystem": "string",
+  "Middleware": "string",
+  "Pattern": "string",
+  "Status": "string",
+  "ErrorCode": "string",
+  "ErrorText": "string",
+  "RootCauseClass": "string",
+  "Latency_ms": "int",
+  "SessionID": "string",
+  "RequestID": "string",
+  "Timestamp": "datetime"
+}

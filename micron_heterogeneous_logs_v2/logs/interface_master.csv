@@ -1,0 +1,29 @@
+InterfaceID,SourceSystem,SourceApplication,TargetSystem,TargetApplication,Middleware,Pattern,BusinessProcess,Criticality,SLA_ms
+IF_PLMPD_SAPPP_001,PLM,PD,SAP_ERP,PP,Kafka,Async,Product Definition to Planning,P1,2000
+IF_PLMPD_MESPE_001,PLM,PD,MES,PE,Kafka,Async,Product Definition to Manufacturing,P1,2000
+IF_PLMCM_SAPPP_001,PLM,CM,SAP_ERP,PP,ESB,Async,Engineering Change to Planning,P2,5000
+IF_SAPPP_MESPE_001,SAP_ERP,PP,MES,PE,Kafka,Async,Production Order to Manufacturing,P1,2000
+IF_MESPE_SAPPP_001,MES,PE,SAP_ERP,PP,Kafka,Async,Production Completion to ERP,P1,2000
+IF_MESYM_SAPQM_001,MES,YM,SAP_ERP,QM,Kafka,Async,Yield Result to Quality,P1,3000
+IF_SAPQM_MESPE_001,SAP_ERP,QM,MES,PE,Kafka,Async,Quality Release to Production,P1,2000
+IF_SAPPROC_ORIM_001,SAP_ERP,PROC,ORACLE_SCM,IM,REST_API,REST,Purchase Order to Inventory,P1,5000
+IF_ORIM_SAPPROC_001,ORACLE_SCM,IM,SAP_ERP,PROC,REST_API,REST,Goods Receipt to Procurement,P2,5000
+IF_ORSC_SAPPP_001,ORACLE_SCM,SC,SAP_ERP,PP,Kafka,Async,Supply Availability to Planning,P1,3000
+IF_SAPPP_ORSC_001,SAP_ERP,PP,ORACLE_SCM,SC,Kafka,Async,Production Plan to Supply Plan,P1,3000
+IF_ORSC_ORIM_001,ORACLE_SCM,SC,ORACLE_SCM,IM,ESB,Sync,Supply Plan to Inventory,P2,5000
+IF_ORIM_ORWMS_001,ORACLE_SCM,IM,ORACLE_SCM,WMS,ESB,Sync,Inventory to Warehouse,P1,2000
+IF_ORWMS_OROM_001,ORACLE_SCM,WMS,ORACLE_SCM,OM,Kafka,Async,Warehouse Fulfillment to Order,P1,3000
+IF_CRMSM_SAPPP_001,CRM,SM,SAP_ERP,PP,REST_API,REST,Customer Demand to Planning,P1,5000
+IF_CRMOM_OROM_001,CRM,OM,ORACLE_SCM,OM,REST_API,REST,Sales Order to Fulfillment,P1,3000
+IF_OROM_CRMOM_001,ORACLE_SCM,OM,CRM,OM,REST_API,REST,Fulfillment Status to Customer,P2,5000
+IF_CRMDM_ORSC_001,CRM,DM,ORACLE_SCM,SC,Kafka,Async,Demand Forecast to Supply Planning,P1,5000
+IF_HCMWM_SAPFIN_001,HCM,WM,SAP_ERP,FIN,ESB,Async,Workforce Cost to Finance,P2,10000
+IF_HCMPAY_SAPFIN_001,HCM,PAY,SAP_ERP,FIN,SFTP,Batch,Payroll Posting to Finance,P1,30000
+IF_SAPFIN_HCMPAY_001,SAP_ERP,FIN,HCM,PAY,SFTP,Batch,Payment Confirmation to Payroll,P2,30000
+IF_SAPPROC_ORWMS_001,SAP_ERP,PROC,ORACLE_SCM,WMS,SFTP,Batch,Purchase Receipt to Warehouse,P2,30000
+IF_MESPE_ORSC_001,MES,PE,ORACLE_SCM,SC,Kafka,Async,Production Completion to Supply,P2,5000
+IF_ORIM_MESPE_001,ORACLE_SCM,IM,MES,PE,Kafka,Async,Material Availability to Manufacturing,P1,3000
+IF_MESPC_PLMPD_001,MES,PC,PLM,PD,REST_API,REST,Process Parameter Feedback to Product,P3,15000
+IF_PLMCFG_MESPC_001,PLM,CFG,MES,PC,REST_API,REST,Configuration to Process Control,P2,5000
+IF_SAPQM_ORWMS_001,SAP_ERP,QM,ORACLE_SCM,WMS,Kafka,Async,Quality Release to Warehouse,P2,5000
+IF_ORWMS_SAPQM_001,ORACLE_SCM,WMS,SAP_ERP,QM,Kafka,Async,Receipt Inspection Trigger,P2,5000

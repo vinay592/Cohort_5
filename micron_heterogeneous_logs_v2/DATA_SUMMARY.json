@@ -1,0 +1,24 @@
+{
+  "logical_events": 6000,
+  "normalized_events": 6000,
+  "source_files": 6,
+  "interfaces": 28,
+  "applications": 24,
+  "systems": 6,
+  "target_columns": [
+    "EventID",
+    "InterfaceID",
+    "SourceSystem",
+    "TargetSystem",
+    "Middleware",
+    "Pattern",
+    "Status",
+    "ErrorCode",
+    "ErrorText",
+    "RootCauseClass",
+    "Latency_ms",
+    "SessionID",
+    "RequestID",
+    "Timestamp"
+  ]
+}
