@@ -256,39 +256,12 @@ def apply_dark_theme() -> None:
 # ---------------------------------------------------------------------------
 
 def page_header(title: str, subtitle: str = "", icon: str = "") -> None:
-    """Render an executive-styled page header with a gold accent underline."""
-    icon_html = f'<span style="font-size:1.6rem; margin-right:10px;">{icon}</span>' if icon else ""
-    subtitle_html = (
-        f'<div style="color:{TEXT_MUTED}; font-size:0.9rem; margin-top:4px; font-weight:400;">{subtitle}</div>'
-        if subtitle
-        else ""
-    )
-    st.markdown(
-        f"""
-        <div style="margin-bottom: 28px;">
-            <div style="display:flex; align-items:center; margin-bottom:6px;">
-                {icon_html}
-                <h1 style="
-                    margin:0;
-                    font-size:1.65rem;
-                    font-weight:700;
-                    color:{TEXT_PRIMARY};
-                    letter-spacing:-0.01em;
-                    font-family:'DM Sans', sans-serif;
-                ">{title}</h1>
-            </div>
-            {subtitle_html}
-            <div style="
-                height:2px;
-                width:60px;
-                background:linear-gradient(90deg, {ACCENT_GOLD}, {ACCENT_INDIGO});
-                border-radius:2px;
-                margin-top:10px;
-            "></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    """Render a clean, native Streamlit page header."""
+    header_text = f"{icon} {title}".strip() if icon else title
+    st.title(header_text)
+    if subtitle:
+        st.caption(subtitle)
+    st.divider()
 
 
 # ---------------------------------------------------------------------------

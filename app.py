@@ -53,6 +53,29 @@ from src.ui_helpers import (
     priority_badge,
 )
 
+import src.rca
+import src.remediation
+import src.ui_l2_helpers
+importlib.reload(sys.modules['src.rca'])
+importlib.reload(sys.modules['src.remediation'])
+importlib.reload(sys.modules['src.ui_l2_helpers'])
+
+# L2 imports
+from src.rca import enhance_incidents, classify_incidents
+from src.remediation import generate_remediation
+from src.ui_l2_helpers import (
+    blast_radius_chart,
+    rca_distribution_chart,
+    remediation_summary_chart,
+    incident_detail_card,
+    remediation_detail_card,
+    playbook_card,
+    impact_tier_badge,
+    rca_category_badge,
+    escalation_badge,
+    human_review_badge,
+)
+
 # ---------------------------------------------------------------------------
 # Apply theme
 # ---------------------------------------------------------------------------
@@ -77,6 +100,12 @@ def build_pipeline(use_legacy=False):
     G = build_dependency_graph(bundle.interface_master, signed)
     events_with_inc, incidents_df = correlate_incidents(signed, G)
 
+    # ── L2 Pipeline ──────────────────────────────────────────────────────────
+    enhanced_inc = enhance_incidents(incidents_df, events_with_inc)
+    rca_df       = classify_incidents(enhanced_inc, events_with_inc, G)
+    remediation_df = generate_remediation(rca_df)
+    # ─────────────────────────────────────────────────────────────────────────
+
     return {
         "bundle": bundle,
         "report": report,
@@ -86,6 +115,10 @@ def build_pipeline(use_legacy=False):
         "sys_agg": sys_agg,
         "G": G,
         "incidents": incidents_df,
+        # L2
+        "enhanced_inc": enhanced_inc,
+        "rca_df": rca_df,
+        "remediation_df": remediation_df,
     }
 
 # Provide a toggle before we build the pipeline
@@ -100,6 +133,10 @@ proc_agg = data["proc_agg"]
 sys_agg = data["sys_agg"]
 G = data["G"]
 incidents_df = data["incidents"]
+# L2
+enhanced_inc   = data["enhanced_inc"]
+rca_df         = data["rca_df"]
+remediation_df = data["remediation_df"]
 
 # ---------------------------------------------------------------------------
 # Sidebar navigation
@@ -128,6 +165,7 @@ PAGE_ICONS = {
     "Incidents": "🚨",
     "Event Explorer": "🔍",
     "Ask the Data": "💬",
+    "L2 Pipeline": "🧠",
 }
 page = st.sidebar.radio(
     "Navigation",
@@ -766,3 +804,96 @@ elif page == "Ask the Data":
                     use_container_width=True,
                     hide_index=True,
                 )
+
+# ---------------------------------------------------------------------------
+# Page: L2 Pipeline
+# ---------------------------------------------------------------------------
+elif page == "L2 Pipeline":
+    page_header("L2 Intelligent Pipeline", "Stage 1 (Detect+Correlate) ➔ Stage 2 (RCA) ➔ Stage 3 (Remediation)")
+
+    tab1, tab2, tab3 = st.tabs([
+        "Stage 1: Detect + Correlate",
+        "Stage 2: RCA (Chronic vs Event)",
+        "Stage 3: Remediation & Routing",
+    ])
+
+    # --- TAB 1: Stage 1 ---
+    with tab1:
+        st.markdown("### Stage 1: Incident Detection & Blast-Radius Scoring")
+        st.caption("Incidents correlated from L1 enriched with Blast-Radius scores and percentile Impact Tiers.")
+
+        col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
+        with col_kpi1:
+            st.markdown(kpi_card("Total Incidents", str(len(enhanced_inc)), delta="Correlated Clusters"), unsafe_allow_html=True)
+        with col_kpi2:
+            n_crit = len(enhanced_inc[enhanced_inc["ImpactTier"] == "CRITICAL"])
+            st.markdown(kpi_card("Critical Incidents", str(n_crit), delta="Top 10% Impact"), unsafe_allow_html=True)
+        with col_kpi3:
+            avg_blast = enhanced_inc["BlastRadius"].mean() if not enhanced_inc.empty else 0
+            st.markdown(kpi_card("Avg Blast Radius", f"{avg_blast:.1f}/100", delta="Cross-System Impact"), unsafe_allow_html=True)
+        with col_kpi4:
+            max_coif_inc = enhanced_inc["TotalCoIF"].max() if not enhanced_inc.empty else 0
+            st.markdown(kpi_card("Max Incident CoIF", f"{max_coif_inc:,.0f}", delta="Highest Risk Cluster"), unsafe_allow_html=True)
+
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+        st.markdown("#### Correlated Incident Inventory")
+        display_inc_cols = [
+            "IncidentID", "ImpactTier", "BlastRadius", "TotalCoIF", "EventCount",
+            "AffectedSystems", "PrimaryErrorCode", "CorrelationStrength"
+        ]
+        avail_cols = [c for c in display_inc_cols if c in enhanced_inc.columns]
+        st.dataframe(enhanced_inc[avail_cols], use_container_width=True, hide_index=True)
+
+    # --- TAB 2: Stage 2 ---
+    with tab2:
+        st.markdown("### Stage 2: Root Cause Analysis (RCA)")
+        st.caption("Data-driven classification of incidents into Chronic structural failures vs Transient events.")
+
+        col_left, col_right = st.columns([1, 2])
+        with col_left:
+            st.plotly_chart(rca_distribution_chart(rca_df), use_container_width=True)
+        with col_right:
+            st.markdown("#### Selected Incident RCA Drilldown")
+            if not rca_df.empty:
+                selected_inc_id = st.selectbox("Select Incident ID for RCA Details", rca_df["IncidentID"].tolist())
+                sel_rca = rca_df[rca_df["IncidentID"] == selected_inc_id].iloc[0]
+                st.markdown(incident_detail_card(sel_rca), unsafe_allow_html=True)
+                st.markdown(sel_rca["RCANarrative"])
+            else:
+                st.info("No RCA data available.")
+
+        st.markdown("#### Complete RCA Summary Table")
+        rca_disp_cols = [
+            "IncidentID", "RCACategory", "ConfidenceScore", "PrimaryRootCause",
+            "RootCauseSystem", "RecurrenceCount", "IncidentDuration_min"
+        ]
+        st.dataframe(rca_df[rca_disp_cols], use_container_width=True, hide_index=True)
+
+    # --- TAB 3: Stage 3 ---
+    with tab3:
+        st.markdown("### Stage 3: Remediation & Human-in-the-Loop Routing")
+        st.caption("Automated playbook generation, team assignment, and human review gating.")
+
+        st.plotly_chart(remediation_summary_chart(remediation_df), use_container_width=True)
+
+        st.markdown("#### Remediation Plan Viewer")
+        if not remediation_df.empty:
+            sel_rem_id = st.selectbox("Select Incident to View Playbook", remediation_df["IncidentID"].tolist())
+            sel_rem = remediation_df[remediation_df["IncidentID"] == sel_rem_id].iloc[0]
+
+            col_rem_left, col_rem_right = st.columns([1, 1])
+            with col_rem_left:
+                st.markdown(remediation_detail_card(sel_rem), unsafe_allow_html=True)
+            with col_rem_right:
+                st.markdown(playbook_card(sel_rem["PlaybookSteps"]), unsafe_allow_html=True)
+        else:
+            st.info("No remediation data available.")
+
+        st.markdown("#### Full Routing & Remediation Queue")
+        rem_disp_cols = [
+            "IncidentID", "ImpactTier", "RCACategory", "AssignedTeam",
+            "EscalationLevel", "AutoResolvable", "HumanReviewRequired", "HumanReviewReason"
+        ]
+        st.dataframe(remediation_df[rem_disp_cols], use_container_width=True, hide_index=True)
+
